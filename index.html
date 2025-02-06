@@ -3,20 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camera Access</title>
+    <title>WTC Animation</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: black;
+        }
+        video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        #status {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px;
+            font-size: 18px;
+            border-radius: 5px;
+        }
+    </style>
 </head>
 <body>
-    <video id="cameraFeed" autoplay playsinline></video>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="overlay"></canvas>
+    <div id="status">Waiting for GPS...</div>
+
     <script>
+        const wtcCoords = { lat: 40.712743, lon: -74.013379 }; // WTC Location
+        const maxDistance = 0.002; // ~200m radius
+        
         async function startCamera() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                document.getElementById('cameraFeed').srcObject = stream;
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                document.getElementById("video").srcObject = stream;
             } catch (error) {
-                console.error("Error accessing camera:", error);
+                console.error("Camera access error:", error);
             }
         }
-        startCamera();
+
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(position => {
+                    const { latitude, longitude } = position.coords;
+                    document.getElementById("status").textContent = `GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+                    checkLocation(latitude, longitude);
+                }, error => {
+                    document.getElementById("status").textContent = "GPS Error!";
+                    console.error("GPS error:", error);
+                }, { enableHighAccuracy: true });
+            } else {
+                document.getElementById("status").textContent = "Geolocation not supported.";
+            }
+        }
+
+        function checkLocation(lat, lon) {
+            const distance = Math.sqrt(Math.pow(lat - wtcCoords.lat, 2) + Math.pow(lon - wtcCoords.lon, 2));
+            if (distance < maxDistance) {
+                startAnimation();
+                document.getElementById("status").textContent = "You're at WTC! 🎇 Animation Activated!";
+            }
+        }
+
+        function startAnimation() {
+            const canvas = document.getElementById("overlay");
+            const ctx = canvas.getContext("2d");
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            let particles = [];
+            for (let i = 0; i < 100; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    radius: Math.random() * 5 + 2,
+                    speedX: Math.random() * 2 - 1,
+                    speedY: Math.random() * 2 - 1
+                });
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "rgba(255, 255, 0, 0.8)";
+                particles.forEach(p => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    p.x += p.speedX;
+                    p.y += p.speedY;
+                    if (p.x < 0 || p.x > canvas.width) p.speedX *= -1;
+                    if (p.y < 0 || p.y > canvas.height) p.speedY *= -1;
+                });
+                requestAnimationFrame(animate);
+            }
+            animate();
+        }
+
+        window.onload = () => {
+            startCamera();
+            getLocation();
+        };
     </script>
 </body>
 </html>
